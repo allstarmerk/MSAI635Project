@@ -71,3 +71,29 @@ def main() -> None:
 
         summary = summarize(results)
         summary.insert(0, "zeta", zeta)
+        summaries.append(summary)
+        for name, df in results.items():
+            all_episodes.append(df.assign(zeta=zeta, strategy=name))
+
+        cols = ["pnl", "pnl_se", "rms_inventory", "fill_ratio", "terminal_inv",
+                "penalized_return", "pnl_sharpe"]
+        print(f"\n--- zeta = {zeta:g}  ({args.eval_episodes} held-out episodes) ---")
+        print(summary[cols].round(3).to_string(), "\n")
+
+    summary_all = pd.concat(summaries).rename_axis("strategy").reset_index()
+    summary_all.to_csv(args.out / "summary.csv", index=False)
+    pd.concat(all_episodes, ignore_index=True).to_csv(args.out / "episodes.csv", index=False)
+
+    # Learning curves (smoothed penalized training return).
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    window = max(1, args.episodes // 100)
+    for (method, zeta), r in curves.items():
+        smooth = np.convolve(r, np.ones(window) / window, mode="valid")
+        ax.plot(smooth, label=f"{method}, zeta={zeta:g}")
+    ax.set_xlabel("training episode")
+    ax.set_ylabel(f"penalized return ({window}-episode mean)")
+    ax.set_title("Training curves (includes exploration)")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(args.out / "learning_curves.png", dpi=120)
+    plt.close(fig)
