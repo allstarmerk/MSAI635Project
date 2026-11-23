@@ -47,4 +47,27 @@ def main() -> None:
     ap.add_argument("--time-bins", type=int, default=10)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, default=Path("results"))
-    
+    args = ap.parse_args()
+    args.out.mkdir(parents=True, exist_ok=True)
+
+    eval_seeds = range(EVAL_SEED_OFFSET, EVAL_SEED_OFFSET + args.eval_episodes)
+    all_episodes, summaries, curves = [], [], {}
+
+    for zeta in args.zeta:
+        params = SimulatorParams(zeta=zeta)
+        results = {"fixed_spread_2": evaluate_policy(FixedSpreadBaseline(2), params, eval_seeds)}
+
+        for i, method in enumerate(METHODS):
+            agent = TabularAgent(method, params.q_max, params.T,
+                                 n_time_bins=args.time_bins, seed=args.seed + i)
+            t0 = time.time()
+            curves[(method, zeta)] = agent.train(MarketSimulator(params, seed=args.seed + 100 + i),
+                                                 args.episodes)
+            print(f"zeta={zeta:g}  {method:<10} trained {args.episodes} episodes in {time.time() - t0:.0f}s")
+            agent.save(args.out / f"qtable_{method}_zeta{zeta:g}.npz")
+            plot_policy(agent, args.out / f"policy_{method}_zeta{zeta:g}.png",
+                        f"{method} greedy policy (zeta={zeta:g})")
+            results[method] = evaluate_policy(agent, params, eval_seeds)
+
+        summary = summarize(results)
+        summary.insert(0, "zeta", zeta)
