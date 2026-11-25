@@ -97,3 +97,25 @@ def main() -> None:
     fig.tight_layout()
     fig.savefig(args.out / "learning_curves.png", dpi=120)
     plt.close(fig)
+
+    # Risk/return tradeoff: PnL vs RMS inventory, one point per (strategy, zeta).
+    fig, ax = plt.subplots(figsize=(7, 5))
+    for name, grp in summary_all.groupby("strategy"):
+        ax.errorbar(grp["rms_inventory"], grp["pnl"], yerr=grp["pnl_se"], marker="o", label=name)
+        if len(args.zeta) > 1 and name != "fixed_spread_2":
+            for _, row in grp.iterrows():
+                ax.annotate(f"ζ={row['zeta']:g}", (row["rms_inventory"], row["pnl"]),
+                            textcoords="offset points", xytext=(4, 4), fontsize=8)
+    ax.set_xlabel("RMS inventory (lower = less risk)")
+    ax.set_ylabel("mean episode PnL")
+    ax.set_title("Profitability vs inventory risk")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(args.out / "tradeoff.png", dpi=120)
+    plt.close(fig)
+
+    print(f"Saved results to {args.out.resolve()}")
+
+
+if __name__ == "__main__":
+    main()
